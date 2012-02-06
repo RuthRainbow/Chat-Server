@@ -5,11 +5,14 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 
 public class myClient {
 	private static int port = 3333;
 	private static String host = "localhost";
+	public static List<String> userInput = Collections.synchronizedList(new ArrayList<String>());
 	
 	public static void main (String[] args) throws IOException {
 		Socket serverSock = null;
@@ -29,45 +32,24 @@ public class myClient {
 
 		final Socket finalSock = serverSock;
 
-		
-		Thread clientThread = new Thread(new Runnable() {
+		Thread stdInThread = new Thread(new Runnable() {
 			
-			private PrintWriter output = null;
-			private BufferedReader input = null;
 			private BufferedReader stdIn = null;
-			private Socket clientSock = finalSock;
 			
-			ArrayList<String> userInput = new ArrayList<String>();
-			int clock = 0;
-			
-			@Override
 			public void run() {
-				
-				//set up the communication streams with the server
-				try {
-					input = new BufferedReader(new InputStreamReader(clientSock.getInputStream()));
-					output = new PrintWriter(clientSock.getOutputStream(), true);
-					stdIn = new BufferedReader(new InputStreamReader(System.in));
-				} catch (IOException streamerr) {
-					System.err.println("error creating streams to/from server");
-					System.err.println(streamerr);
-					System.exit(1);
-				} 
+				stdIn = new BufferedReader(new InputStreamReader(System.in)); 
 				
 				//to hold user input
 				String usermsg = null;
-				//to hold server input
-				String servermsg = null;
 				
-				//I want to: read user input, queue this, send to server, receive from server
-				//but i can do reading the input and reading from the socket at the same time
-				while (true) {
-					
+				while(true) {
 					try {
 						//read from stdin, add to list when not null input
 						if((usermsg = stdIn.readLine())!=null) {
 							System.out.println("std is not null :) " + usermsg);
-							userInput.add(usermsg);
+							synchronized (userInput) {
+								userInput.add(usermsg);
+							}
 						}
 					}
 					catch (IOException stdInerr) {
@@ -75,40 +57,81 @@ public class myClient {
 						System.err.println(stdInerr);
 						System.exit(1);
 					}
-					
-					//PROBLEM: DOESN@T GET HERE UNTIL CLIENT HAS QUIT
-					System.out.println("now looking at the clock");
-					if(clock < 250){
+				}
+			}
+		});
+		
+		Thread clientThread = new Thread(new Runnable() {
+			
+			private BufferedReader fromServer = null;
+			private PrintWriter toServer = null;
+			private Socket clientSock = finalSock;
+			
+			@Override
+			public void run() {
+				
+				//set up the communication streams with the server
+				try {
+					fromServer = new BufferedReader(new InputStreamReader(clientSock.getInputStream()));
+					toServer = new PrintWriter(clientSock.getOutputStream(), true);
+					System.out.println("successfully made server streams");
+				} catch (IOException streamerr) {
+					System.err.println("error creating streams to/from server");
+					System.err.println(streamerr);
+					System.exit(1);
+				} 
+				
+				//to hold server input
+				String servermsg = null;
+				int clock = 0;
+				
+				//I want to: read user input, queue this, send to server, receive from server
+				//but i can do reading the input and reading from the socket at the same time
+				while (true) {
+					if (clock < 250) {
 						//write to the socket whilst the list has stuff to write
-						while((userInput.isEmpty())==false) {
-							System.out.println("user input was not null :) " + userInput);
-							output.println(userInput.remove(0));
-						}
+						synchronized(userInput) {
+							if(clock == 0) System.out.println("thinking about adding to server queue");
+							//currently does this until any user input
+							while((userInput.isEmpty())==false) {
+								System.out.println("user input was not null :) " + userInput);
+								toServer.println(userInput.remove(0));
+							}			
+						} 
 					}
 					else {
 						//read from the socket while the input isn't null print the message
+						if(clock == 250) System.out.println("thinking about reading from server");
 						try {
-							while((servermsg = input.readLine())!= null) {
-								System.out.println("server input was not null :) " + servermsg);
-								System.out.println(servermsg);
+							//PROBLEM: CODE IS GETTING STUCK ON BELOW LINE
+							//do i need this is another thread with interrupts? It would work...
+							if((servermsg = fromServer.readLine())!= null) {
+							System.out.println("server input was not null :) " + servermsg);
+							System.out.println(servermsg);
 							}
+							
 						} catch (IOException outputerr) {
 							System.err.println("Unable to read server input");
 							System.err.println(outputerr);
 							System.exit(1);
 						}
-					}
-					
-					if(clock < 300)
+						
+					}     
+					//increment the clock up to 500 then reset it
+					if (clock < 500) {
 						clock++;
-					else clock = 0;
-					System.out.println(clock);
-				}        
+					} else {
+						clock = 0;
+						System.out.println("resetting clock");
+					}
+				}
 				
 			}
 			
 		});
 		
+		stdInThread.start();
 		clientThread.start();
+
 	}
 }
