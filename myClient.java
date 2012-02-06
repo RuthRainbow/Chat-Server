@@ -91,7 +91,6 @@ public class myClient {
 					if (clock < 250) {
 						//write to the socket whilst the list has stuff to write
 						synchronized(userInput) {
-							if(clock == 0) System.out.println("thinking about adding to server queue");
 							//currently does this until any user input
 							while((userInput.isEmpty())==false) {
 								System.out.println("user input was not null :) " + userInput);
@@ -101,20 +100,19 @@ public class myClient {
 					}
 					else {
 						//read from the socket while the input isn't null print the message
-						if(clock == 250) System.out.println("thinking about reading from server");
 						try {
-							//PROBLEM: CODE IS GETTING STUCK ON BELOW LINE
 							//do i need this is another thread with interrupts? It would work...
-							if((servermsg = fromServer.readLine())!= null) {
-							System.out.println("server input was not null :) " + servermsg);
-							System.out.println(servermsg);
+							if(fromServer.ready() == true) {
+								servermsg = fromServer.readLine();
+								System.out.println("server input was not null :) " + servermsg);
+								System.out.println(servermsg);
 							}
 							
 						} catch (IOException outputerr) {
 							System.err.println("Unable to read server input");
 							System.err.println(outputerr);
 							System.exit(1);
-						}
+						} 
 						
 					}     
 					//increment the clock up to 500 then reset it
@@ -122,7 +120,6 @@ public class myClient {
 						clock++;
 					} else {
 						clock = 0;
-						System.out.println("resetting clock");
 					}
 				}
 				

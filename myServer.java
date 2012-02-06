@@ -61,9 +61,7 @@ public class myServer {
 						if((msg = input.readLine()) != null) {
 							//process the client's message according to the protocol
 							System.out.println("trying to parse " + msg);
-							String reply = pro.process(msg);
-							output.println(reply);
-							System.out.println(reply);
+							pro.process(msg);
 						}
 					} catch (IOException readerr){
 						System.err.println("Error when reading input stream");
@@ -76,7 +74,6 @@ public class myServer {
 		});
 		
 		serverThread.start();
-		
 		}
 		
 	}
