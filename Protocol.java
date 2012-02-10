@@ -16,6 +16,7 @@ class Protocol {
 
 	//Storing current connections - nick and associated socket
 	private static Hashtable<String, Socket> onlineNicks = new Hashtable<String, Socket>();
+	//PROBLEM: need to check if nick exists to send a message, don't want to have to know password
 	//Storing all known nicks - nick, password and queue of messages waiting for user to come online (ie have an entry in the other hash table)
 	private static Hashtable<NickPwd, List<String>> allNicks = new Hashtable<NickPwd, List<String>>();
 	
@@ -27,7 +28,6 @@ class Protocol {
 	}
 	
 	public void process(String message) throws IOException {
-	//false => error occurred, RETURN AN ERROR MESSAGE AND EXCEPTION
 			System.out.println("processing " + message);
 			if (message == null) {
 				write("no message");
@@ -40,23 +40,28 @@ class Protocol {
 				if(nick != null) {
 					write("Already signed in, please sign out first");
 				}
-				
-				nick = tokens[1];
-				password = tokens[2];
-				
-				if(allNicks.containsKey(nick)==false){
-					write("You must first create a user account");
-				}
 				else {
-					//CHECK IF PASSWORD IS CORRECT
-					onlineNicks.put(nick, proSock);
-					//send their list of offline messages
-					List<String> msgs = allNicks.get(nick);
-					System.out.println(msgs.toString());
-					msgs.clear();
-					//update their msgs list to empty
-					allNicks.put(new NickPwd(nick, password), msgs);
-					write("Hello " + nick);
+					if(tokens.length == 3) {
+						nick = tokens[1];
+						password = tokens[2];
+						NickPwd currnick = new NickPwd(nick, password);
+						if((allNicks.containsKey(currnick))==false){
+							//FAILED HERE
+							write("Please enter a valid username and password");
+						}
+						else {
+							//CHECK IF PASSWORD IS CORRECT
+							onlineNicks.put(nick, proSock);
+							//send their list of offline messages
+							List<String> msgs = allNicks.get(nick);
+							System.out.println(msgs.toString());
+							msgs.clear();
+							//update their msgs list to empty
+							allNicks.put(currnick, msgs);
+							write("Hello " + nick);
+						}
+					}
+					else write("Usage: USER <nick> <password>");
 				}
 			}
 			else if(message.startsWith("NOOP")==true){
@@ -64,7 +69,7 @@ class Protocol {
 				write("Acknowledged");
 			}
 			else if(message.startsWith("WHO")==true){
-				write(onlineNicks.toString());
+				write("Online: " + onlineNicks.toString());
 			}
 			else if(message.startsWith("MSG")== true) { //takes arg dest nick, msg {
 				destNick = tokens[1];
@@ -72,52 +77,57 @@ class Protocol {
 				if(tokens.length > 302) {
 					write("message too long");
 				}
-				text = new String[tokens.length-2];
-				for (int i = 2; i < tokens.length; i++) {
-					System.out.println("i = " + i);
-					System.out.println("length of tokens is " + tokens.length);
-					System.out.println("adding " + tokens[i]);
-					//System.out.println(" to the string " + text[i-2]);
-					text[i-2] = tokens[i];
+				else if((nick == null) || onlineNicks.containsKey(nick)==false) {
+					write("Please sign in to send a message");
 				}
-				//look for dest nick in storage table
-				if(onlineNicks.containsKey(destNick)==false) {
-					//add message to queue in allNicks 
-					if(allNicks.containsKey(destNick)==false) {
-						write("Nick not found");
+				else if(tokens.length > 2){
+					text = new String[tokens.length-2];
+					for (int i = 2; i < tokens.length; i++) {
+						System.out.println("i = " + i);
+						System.out.println("length of tokens is " + tokens.length);
+						System.out.println("adding " + tokens[i]);
+						//System.out.println(" to the string " + text[i-2]);
+						text[i-2] = tokens[i];
 					}
-					else {
-						List<String> msgs = allNicks.get(nick);
-						msgs.add(text.toString());
-						allNicks.put(new NickPwd(nick, password), msgs);
-						write("User offline, message sent");
+					//look for dest nick in storage table
+					if(onlineNicks.containsKey(destNick)==false) {
+						//add message to queue in allNicks 
+						//PROBLEM: need to know their password to check if their nick exists!
+						if(allNicks.containsKey(destNick)==false) {
+							write("Nick not found");
+						}
+						else {
+							List<String> msgs = allNicks.get(nick);
+							msgs.add(text.toString());
+							allNicks.put(new NickPwd(nick, password), msgs);
+							write("User offline, message sent");
+						}
 					}
+					else { //send message from prosock -> destnick's sock
+							Socket destSock = onlineNicks.get(destNick);
+							System.out.println(Arrays.toString(text));
+							destSock.getOutputStream().write((nick + ": " + Arrays.toString(text) + "\r\n").getBytes());
+							System.out.println("sending " + Arrays.toString(text).getBytes());
+						}
 				}
-				else { //send message from prosock -> destnick's sock
-						Socket destSock = onlineNicks.get(destNick);
-						System.out.println(Arrays.toString(text));
-						destSock.getOutputStream().write((destNick + ": " + Arrays.toString(text) + "\r\n").getBytes());
-						System.out.println("sending " + Arrays.toString(text).getBytes());
-					}
+				else write("usage: MSG <nick> <message>");
 			}
 
 			else if(message.startsWith("NEW")==true){
-				//tokens[1] = nick i want
-				//WAHHHH
-				if(tokens[1] != null) nick = tokens[1];
-				if(tokens[2] != null) password = tokens[2];
-				//THIS CAN@T HANDLE EMPTY NICK OR PASSWORD FIELDS
-				if(nick!=null && password!= null) {
-					if(allNicks.containsKey(nick)) {
-						write("nick already exists");
-					}
-					else {
-						List<String> msgs = new ArrayList<String>();
-						allNicks.put(new NickPwd(nick, password), msgs);
-						write("created new nick");
+				//tokens[1] = nick i want, tokens[2] = password
+				if(tokens.length >= 3) {
+					if(tokens[1]!=null && tokens[2]!= null) {
+						if(allNicks.containsKey(tokens[1])) {
+							write("nick already exists");
+						}
+						else {
+							List<String> msgs = new ArrayList<String>();
+							allNicks.put(new NickPwd(tokens[1], tokens[2]), msgs);
+							write("created new nick");
+						}
 					}
 				}
-				else write("please provide a nick and password");
+				else write("usage: NEW <nick> <password>");
 			}
 			else if(message.startsWith("QUIT") == true) {
 				//remove the nick from the hash table if actually signed in
@@ -127,7 +137,7 @@ class Protocol {
 					System.out.println("signing out " + nick);
 				}
 				else {
-					write("Please sign in first");
+					write("Not signed in anyway");
 				}
 				//close the conn
 				try {
@@ -151,12 +161,12 @@ class Protocol {
 	}
 	
 	private class NickPwd {
-		private String userNick;
-		private String userPwd;
+		public String userNick;
+		public String userPwd;
 		
 		NickPwd(String n, String p) {
 			this.userNick = n;
-			this.userPwd = userPwd;
+			this.userPwd = p;
 		}
 		
 		public String getPassword() {

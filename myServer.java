@@ -60,7 +60,7 @@ public class myServer {
 					try {
 						if((msg = input.readLine()) != null) {
 							//process the client's message according to the protocol
-							System.out.println("trying to parse " + msg);
+							//System.out.println("trying to parse " + msg);
 							pro.process(msg);
 						}
 					} catch (IOException readerr){

@@ -46,7 +46,7 @@ public class myClient {
 					try {
 						//read from stdin, add to list when not null input
 						if((usermsg = stdIn.readLine())!=null) {
-							System.out.println("std is not null :) " + usermsg);
+							//System.out.println("std is not null :) " + usermsg);
 							synchronized (userInput) {
 								userInput.add(usermsg);
 							}
@@ -93,7 +93,7 @@ public class myClient {
 						synchronized(userInput) {
 							//currently does this until any user input
 							while((userInput.isEmpty())==false) {
-								System.out.println("user input was not null :) " + userInput);
+								//System.out.println("user input was not null :) " + userInput);
 								toServer.println(userInput.remove(0));
 							}			
 						} 
@@ -104,7 +104,7 @@ public class myClient {
 							//do i need this is another thread with interrupts? It would work...
 							if(fromServer.ready() == true) {
 								servermsg = fromServer.readLine();
-								System.out.println("server input was not null :) " + servermsg);
+								//System.out.println("server input was not null :) " + servermsg);
 								System.out.println(servermsg);
 							}
 							
