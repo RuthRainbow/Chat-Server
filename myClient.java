@@ -8,9 +8,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-
 public class myClient {
-	private static int port = 3333;
+	private static int port = 3339;
 	private static String host = "localhost";
 	public static List<String> userInput = Collections.synchronizedList(new ArrayList<String>());
 	
@@ -32,6 +31,7 @@ public class myClient {
 
 		final Socket finalSock = serverSock;
 
+		//thread for stdIn to be run by clients that have established a server connection
 		Thread stdInThread = new Thread(new Runnable() {
 			
 			private BufferedReader stdIn = null;
@@ -46,7 +46,6 @@ public class myClient {
 					try {
 						//read from stdin, add to list when not null input
 						if((usermsg = stdIn.readLine())!=null) {
-							//System.out.println("std is not null :) " + usermsg);
 							synchronized (userInput) {
 								userInput.add(usermsg);
 							}
@@ -61,6 +60,7 @@ public class myClient {
 			}
 		});
 		
+		//client thread for reading/writing to server
 		Thread clientThread = new Thread(new Runnable() {
 			
 			private BufferedReader fromServer = null;
@@ -85,26 +85,21 @@ public class myClient {
 				String servermsg = null;
 				int clock = 0;
 				
-				//I want to: read user input, queue this, send to server, receive from server
-				//but i can do reading the input and reading from the socket at the same time
 				while (true) {
+					//clock gives reading/writing to socket equal time slices
 					if (clock < 250) {
 						//write to the socket whilst the list has stuff to write
 						synchronized(userInput) {
-							//currently does this until any user input
 							while((userInput.isEmpty())==false) {
-								//System.out.println("user input was not null :) " + userInput);
 								toServer.println(userInput.remove(0));
 							}			
 						} 
 					}
 					else {
-						//read from the socket while the input isn't null print the message
+						//read from the socket, while the input isn't null print the message
 						try {
-							//do i need this is another thread with interrupts? It would work...
 							if(fromServer.ready() == true) {
 								servermsg = fromServer.readLine();
-								//System.out.println("server input was not null :) " + servermsg);
 								System.out.println(servermsg);
 							}
 							
@@ -129,6 +124,19 @@ public class myClient {
 		
 		stdInThread.start();
 		clientThread.start();
-
+		
+		//thread for handling ctrl+c
+		Runtime.getRuntime().addShutdownHook(new Thread() {
+            public void run() {
+            	try {
+					finalSock.close();
+				} catch (IOException e) {
+					System.err.println("Failed to close socket");
+					System.err.println(e);
+					System.exit(1);
+				}
+                System.out.println("Exiting client, shutting ports");
+            }
+        });
 	}
 }

@@ -6,7 +6,7 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 
 public class myServer {
-	private static int port = 3333;
+	private static int port = 3339;
 	
 	public static void main (String[] args) throws IOException {
 		ServerSocket serverSock = null;
@@ -37,7 +37,6 @@ public class myServer {
 		Thread serverThread = new Thread(new Runnable() {
 			private Socket thisSock = acceptedSock;
 			private BufferedReader input = null;
-			private PrintWriter output = null;
 			@Override
 			public void run() {
 				//code run by thread ie server code once one client sock accepted
@@ -48,7 +47,7 @@ public class myServer {
 				//make a new input stream reader and output writer to client
 				try {
 					input = new BufferedReader(new InputStreamReader(thisSock.getInputStream()));
-					output = new PrintWriter(thisSock.getOutputStream());
+					new PrintWriter(thisSock.getOutputStream());
 				} catch (IOException streamerr) {
 					System.err.println("Failed to create input/output streams to client");
 					System.err.println(streamerr);
@@ -56,11 +55,10 @@ public class myServer {
 				}
 				System.out.println("made the input/output streams");
 
-				while(true) { //or do i need to do this until the next line is blank?
+				while(thisSock.isClosed()==false) {
 					try {
 						if((msg = input.readLine()) != null) {
 							//process the client's message according to the protocol
-							//System.out.println("trying to parse " + msg);
 							pro.process(msg);
 						}
 					} catch (IOException readerr){
